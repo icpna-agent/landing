@@ -24,10 +24,10 @@ const Navbar = () => {
     <nav className="fixed w-full top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
       <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-            <MessageCircle size={24} />
+          <div className="w-10 h-10 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <img src="/logo_completo.avif" alt="ICPNA Logo" className="w-full h-full object-contain rounded-xl shadow-md" />
           </div>
-          <span className="font-bold text-xl tracking-tight text-slate-900">ChatBot <span className="text-blue-600">ICPNA</span></span>
+          <span className="font-bold text-xl tracking-tight text-slate-900">ICPNA <span className="text-blue-600">Assistant</span></span>
         </Link>
         <div className="hidden md:flex gap-8 items-center font-medium text-sm text-slate-600">
           <a href="#beneficios" className="hover:text-slate-900 transition-colors">Beneficios</a>
@@ -112,7 +112,7 @@ const LandingPage = () => {
             <div className="bg-[#efeae2] w-full h-[600px] rounded-[2.5rem] overflow-hidden flex flex-col relative">
               <div className="bg-[#008069] text-white px-4 py-3 flex items-center gap-3 pt-8 shadow-sm z-10">
                 <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center"><MessageCircle size={20} className="text-[#008069]" /></div>
-                <div><p className="font-semibold text-sm leading-tight">ChatBot ICPNA</p><p className="text-[10px] opacity-80">en línea</p></div>
+                <div><p className="font-semibold text-sm leading-tight">ICPNA Assistant</p><p className="text-[10px] opacity-80">en línea</p></div>
               </div>
               <div className="flex-1 p-4 space-y-4 bg-[url('https://i.pinimg.com/originals/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-cover opacity-90 flex flex-col">
                 <motion.div initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} transition={{delay:0.5}} className="bg-[#d9fdd3] p-3 rounded-xl rounded-tr-none self-end max-w-[85%] text-sm shadow-sm text-slate-800">
@@ -144,8 +144,7 @@ const LandingPage = () => {
             </FadeIn>
             <FadeIn delay={0.2} className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 blur-[80px] opacity-30"></div>
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><CheckCircle size={20} className="text-green-400"/> ChatBot ICPNA</h3>
-              <ul className="space-y-4 text-slate-300 text-sm">
+                <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><CheckCircle size={20} className="text-green-400"/> ICPNA Assistant</h3>              <ul className="space-y-4 text-slate-300 text-sm">
                 <li className="flex gap-3"><span className="text-green-400">✅</span> <span>Todo directamente desde WhatsApp.</span></li>
                 <li className="flex gap-3"><span className="text-green-400">✅</span> <span>Respuesta inmediata en menos de 3 segundos.</span></li>
                 <li className="flex gap-3"><span className="text-green-400">✅</span> <span>Estudio 100% móvil y ergonómico.</span></li>
@@ -235,7 +234,7 @@ const LandingPage = () => {
             <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm text-sm">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
-                  <tr><th className="p-4">Característica</th><th className="p-4 text-center">Tradicional</th><th className="p-4 text-center text-blue-600 bg-blue-50/50">ChatBot</th></tr>
+                  <tr><th className="p-4">Característica</th><th className="p-4 text-center">Tradicional</th><th className="p-4 text-center text-blue-600 bg-blue-50/50">Asistente</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   <tr><td className="p-4 font-medium">Tiempo de respuesta</td><td className="p-4 text-center text-slate-400">Minutos navegando</td><td className="p-4 text-center font-bold bg-blue-50/50 text-slate-900">&lt; 3 seg</td></tr>
@@ -290,7 +289,7 @@ const LandingPage = () => {
       </section>
       
       <footer className="bg-slate-950 py-10 text-center text-slate-500 text-sm">
-        <p>Frontend Mockup - ChatBot ICPNA 2026. Proyecto Universitario.</p>
+        <p>Frontend Mockup - ICPNA Assistant 2026. Proyecto Universitario.</p>
       </footer>
     </div>
   );
@@ -373,7 +372,7 @@ const DashboardPage = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-        <Link to="/" className="font-bold text-xl text-slate-900">ChatBot <span className="text-blue-600">ICPNA</span></Link>
+        <Link to="/" className="font-bold text-xl text-slate-900">ICPNA <span className="text-blue-600">Assistant</span></Link>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">AI</div>
           <span className="text-sm font-medium text-slate-700">André I.</span>
