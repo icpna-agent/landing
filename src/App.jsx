@@ -303,16 +303,52 @@ const LandingPage = () => {
 // ==========================================
 const AuthPage = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState('');
+  const [mail, setMail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [pswd, setPswd] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simular carga de validación visual y mandar al éxito (MOCK)
-    setTimeout(() => {
+    setMessage('');
+
+    try {
+      const response = await fetch('http://localhost:3000/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user,
+          pswd,
+          phone,
+          mail,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        setMessage(data?.message || 'Error al registrar la cuenta.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.body?.token) {
+        sessionStorage.setItem('authToken', data.body.token);
+        sessionStorage.setItem('refreshToken', data.body.refresh || '');
+        navigate('/success');
+      } else {
+        setMessage('Registro completado, pero no se recibió token.');
+      }
+    } catch (err) {
+      setMessage('Error de conexión. Intenta de nuevo más tarde.');
+    } finally {
       setIsLoading(false);
-      navigate('/success'); 
-    }, 1500);
+    }
   };
 
   return (
@@ -327,18 +363,59 @@ const AuthPage = () => {
         <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100">
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
+              <label className="block text-sm font-medium text-slate-700">Usuario</label>
+              <input
+                type="text"
+                name="user"
+                value={user}
+                onChange={(e) => setUser(e.target.value)}
+                required
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="usuario"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-slate-700">Email institucional o personal</label>
-              <input type="email" required className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" placeholder="alumno@utp.edu.pe" />
+              <input
+                type="email"
+                name="mail"
+                value={mail}
+                onChange={(e) => setMail(e.target.value)}
+                required
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="alumno@utp.edu.pe"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">Teléfono (WhatsApp)</label>
-              <input type="tel" required className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" placeholder="+51 999 999 999" />
+              <input
+                type="tel"
+                name="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="+51 999 999 999"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">Contraseña</label>
-              <input type="password" required className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" placeholder="••••••••" />
+              <input
+                type="password"
+                name="pswd"
+                value={pswd}
+                onChange={(e) => setPswd(e.target.value)}
+                required
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="••••••••"
+              />
             </div>
-            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-blue-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+            {message && <p className="text-sm text-red-600">{message}</p>}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-blue-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
               {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Continuar al Pago'}
             </button>
           </form>
@@ -372,6 +449,91 @@ const SuccessPage = () => {
 // PÁGINA 4: DASHBOARD (Ruta: /dashboard)
 // ==========================================
 const DashboardPage = () => {
+  const [me, setMe] = useState(null);
+  const [loadingMe, setLoadingMe] = useState(true);
+  const [meError, setMeError] = useState('');
+
+  const refreshTokens = async (refreshToken) => {
+    try {
+      const refreshResponse = await fetch('http://localhost:3000/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${refreshToken}`,
+        },
+      });
+
+      if (!refreshResponse.ok) {
+        return null;
+      }
+
+      const refreshData = await refreshResponse.json();
+      if (refreshData.error || !refreshData.body?.token) {
+        return null;
+      }
+
+      sessionStorage.setItem('authToken', refreshData.body.token);
+      sessionStorage.setItem('refreshToken', refreshData.body.refresh || '');
+      return refreshData.body;
+    } catch (err) {
+      return null;
+    }
+  };
+
+  const loadProfile = async () => {
+    const token = sessionStorage.getItem('authToken');
+    if (!token) {
+      setMeError('No se encontró el token de autenticación.');
+      setLoadingMe(false);
+      return;
+    }
+
+    try {
+      let response = await fetch('http://localhost:3000/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        const refreshToken = sessionStorage.getItem('refreshToken');
+        if (!refreshToken) {
+          setMeError('Sesión expirada. Por favor, regresa y crea tu cuenta de nuevo.');
+          setLoadingMe(false);
+          return;
+        }
+
+        const refreshed = await refreshTokens(refreshToken);
+        if (!refreshed) {
+          setMeError('No se pudo renovar la sesión. Intenta nuevamente.');
+          setLoadingMe(false);
+          return;
+        }
+
+        response = await fetch('http://localhost:3000/auth/me', {
+          headers: {
+            Authorization: `Bearer ${refreshed.token}`,
+          },
+        });
+      }
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        setMeError(data?.message || 'No se pudo obtener los datos del usuario.');
+      } else {
+        setMe(data.body);
+      }
+    } catch (err) {
+      setMeError('Error de conexión al recuperar el perfil.');
+    } finally {
+      setLoadingMe(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50">
       <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
@@ -381,43 +543,54 @@ const DashboardPage = () => {
         </Link>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">AI</div>
-          <span className="text-sm font-medium text-slate-700">André I.</span>
+          <span className="text-sm font-medium text-slate-700">{me?.user || 'Usuario'}</span>
         </div>
       </nav>
 
       <main className="max-w-5xl mx-auto px-6 py-12">
-        <FadeIn><h1 className="text-3xl font-bold text-slate-900 mb-8">Mi Suscripción</h1></FadeIn>
-        
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          {/* Card Estado */}
-          <FadeIn delay={0.1} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-2">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="text-sm font-medium text-slate-500 mb-1">Estado de la cuenta</h3>
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>
-                  <span className="text-2xl font-bold text-slate-900">Activo</span>
+        <FadeIn>
+          <h1 className="text-3xl font-bold text-slate-900 mb-8">Mi Suscripción</h1>
+        </FadeIn>
+
+        {loadingMe ? (
+          <FadeIn>
+            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm text-slate-600">Cargando perfil...</div>
+          </FadeIn>
+        ) : meError ? (
+          <FadeIn>
+            <div className="rounded-3xl border border-red-200 bg-red-50 p-8 shadow-sm text-red-700">{meError}</div>
+          </FadeIn>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
+            {/* Card Estado */}
+            <FadeIn delay={0.1} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-2">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-sm font-medium text-slate-500 mb-1">Estado de la cuenta</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>
+                    <span className="text-2xl font-bold text-slate-900">Activo</span>
+                  </div>
                 </div>
+                <div className="bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs font-semibold text-slate-600">Plan: S/. 5/mes</div>
               </div>
-              <div className="bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs font-semibold text-slate-600">Plan: S/. 5/mes</div>
-            </div>
-            <p className="text-sm text-slate-600 mb-6">Tu número +51 987 654 321 está vinculado y autorizado en el motor de IA.</p>
-            <div className="flex gap-3">
-              <button className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition">Gestionar Pago</button>
-              <button className="bg-slate-100 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">Cancelar</button>
-            </div>
-          </FadeIn>
+              <p className="text-sm text-slate-600 mb-6">Tu número {me?.phone || '+51 987 654 321'} está vinculado y autorizado en el motor de IA.</p>
+              <div className="flex gap-3">
+                <button className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition">Gestionar Pago</button>
+                <button className="bg-slate-100 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">Cancelar</button>
+              </div>
+            </FadeIn>
 
-          {/* Card Quick Action */}
-          <FadeIn delay={0.2} className="bg-gradient-to-br from-blue-600 to-indigo-600 p-6 rounded-2xl shadow-lg text-white flex flex-col justify-center items-center text-center">
-            <MessageCircle size={40} className="mb-4 opacity-80" />
-            <h3 className="font-bold mb-2">Hablar con el Bot</h3>
-            <p className="text-xs text-blue-100 mb-4">Abre WhatsApp para empezar a practicar.</p>
-            <a href="#" className="bg-white text-blue-600 px-6 py-2 rounded-full text-sm font-bold w-full hover:bg-blue-50 transition">Abrir WhatsApp</a>
-          </FadeIn>
-        </div>
+            {/* Card Quick Action */}
+            <FadeIn delay={0.2} className="bg-gradient-to-br from-blue-600 to-indigo-600 p-6 rounded-2xl shadow-lg text-white flex flex-col justify-center items-center text-center">
+              <MessageCircle size={40} className="mb-4 opacity-80" />
+              <h3 className="font-bold mb-2">Hablar con el Bot</h3>
+              <p className="text-xs text-blue-100 mb-4">Abre WhatsApp para empezar a practicar.</p>
+              <a href="#" className="bg-white text-blue-600 px-6 py-2 rounded-full text-sm font-bold w-full hover:bg-blue-50 transition">Abrir WhatsApp</a>
+            </FadeIn>
+          </div>
+        )}
 
-        {/* Historial Table Mock */}
         <FadeIn delay={0.3}>
           <h2 className="text-xl font-bold text-slate-900 mb-4">Historial de Pagos</h2>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
