@@ -23,11 +23,14 @@ const Navbar = () => {
   return (
     <nav className="fixed w-full top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
       <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 flex items-center justify-center group-hover:scale-105 transition-transform">
-            <img src="/logo_completo.avif" alt="ICPNA Logo" className="w-full h-full object-contain rounded-xl shadow-md" />
+        <Link to="/" className="flex items-center gap-2 group">
+          {/* Contenedor del logo más grande (h-12) y ancho automático */}
+          <div className="h-7 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <img src="/logo_completo.avif" alt="Logo ICPNA" className="h-full w-auto object-contain drop-shadow-sm" />
           </div>
-          <span className="font-bold text-xl tracking-tight text-slate-900">ICPNA <span className="text-blue-600">Assistant</span></span>
+          
+          {/* Solo el texto Assistant en azul */}
+          <span className="font-bold text-2xl tracking-tight text-blue-600">Assistant</span>
         </Link>
         <div className="hidden md:flex gap-8 items-center font-medium text-sm text-slate-600">
           <a href="#beneficios" className="hover:text-slate-900 transition-colors">Beneficios</a>
@@ -372,7 +375,10 @@ const DashboardPage = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-        <Link to="/" className="font-bold text-xl text-slate-900">ICPNA <span className="text-blue-600">Assistant</span></Link>
+        <Link to="/" className="flex items-center gap-2 h-8">
+          <img src="/logo_completo.avif" alt="Logo ICPNA" className="h-full w-auto object-contain" />
+          <span className="font-bold text-lg text-blue-600">Assistant</span>
+        </Link>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">AI</div>
           <span className="text-sm font-medium text-slate-700">André I.</span>
