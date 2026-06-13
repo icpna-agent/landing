@@ -1,5 +1,9 @@
 {
     "default": {
+        "require": [
+            "features/support/**/*.js",
+            "features/definitions/**/*.js"
+        ],
         "formatOptions": {
             "snippetInterface": "synchronous"
         }

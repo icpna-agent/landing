@@ -316,7 +316,7 @@ const AuthPage = () => {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:3000/auth/register', {
+      const response = await fetch(`${process.env.BACKEND}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
