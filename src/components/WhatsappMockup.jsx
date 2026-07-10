@@ -4,7 +4,7 @@ export const WhatsappMockup = () => {
     <div className="w-[300px] h-[600px] bg-slate-900 rounded-[3rem] border-[8px] border-slate-800 shadow-2xl p-2 relative">
       <div className="bg-[#efeae2] h-full rounded-[2.5rem] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-[#008069] p-4 text-white font-semibold">ChatBot ICPNA</div>
+        <div className="bg-[#004739] p-4 text-white font-semibold">ChatBot ICPNA</div>
         {/* Chat area */}
         <div className="flex-1 p-4 space-y-4">
           <div className="bg-[#d9fdd3] p-3 rounded-lg self-end ml-auto max-w-[80%]">

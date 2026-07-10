@@ -41,7 +41,11 @@ const Navbar = () => {
             S/. 5 / mes
           </a>
         </div>
-        <button className="md:hidden text-slate-900" onClick={() => setIsOpen(!isOpen)}>
+        <button 
+          className="md:hidden text-slate-900" 
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? "Cerrar menú" : "Abrir menú"}
+        >
           {isOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
@@ -113,7 +117,7 @@ const LandingPage = () => {
           <div className="absolute inset-0 bg-gradient-to-tr from-blue-200 to-emerald-100 rounded-full blur-3xl opacity-40 scale-150"></div>
           <div className="w-[320px] bg-slate-900 rounded-[3rem] p-2 shadow-2xl relative z-10 border-[6px] border-slate-800">
             <div className="bg-[#efeae2] w-full h-[600px] rounded-[2.5rem] overflow-hidden flex flex-col relative">
-              <div className="bg-[#008069] text-white px-4 py-3 flex items-center gap-3 pt-8 shadow-sm z-10">
+              <div className="bg-[#004739] text-white px-4 py-3 flex items-center gap-3 pt-8 shadow-sm z-10">
                 <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center"><MessageCircle size={20} className="text-[#008069]" /></div>
                 <div><p className="font-semibold text-sm leading-tight">ICPNA Assistant</p><p className="text-[10px] opacity-80">en línea</p></div>
               </div>
@@ -203,8 +207,8 @@ const LandingPage = () => {
               <div ref={chatEndRef} />
             </div>
             <form onSubmit={handleDemoSubmit} className="bg-[#202c33] p-3 flex gap-2">
-              <input type="text" value={demoInput} onChange={(e) => setDemoInput(e.target.value)} placeholder="Escribe tu mensaje..." className="flex-1 bg-[#2a3942] text-white rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              <button type="submit" className="bg-blue-600 p-2 rounded-full text-white hover:bg-blue-500 transition-colors"><ArrowRight size={20}/></button>
+              <input type="text" value={demoInput} onChange={(e) => setDemoInput(e.target.value)} placeholder="Escribe tu mensaje..." aria-label="Mensaje para el bot" className="flex-1 bg-[#2a3942] text-white rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              <button type="submit" aria-label="Enviar mensaje" className="bg-blue-600 p-2 rounded-full text-white hover:bg-blue-500 transition-colors"><ArrowRight size={20}/></button>
             </form>
           </FadeIn>
         </div>
@@ -318,7 +322,7 @@ const AuthPage = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <FadeIn className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link to="/" className="flex justify-center mb-6 text-blue-600"><MessageCircle size={40} /></Link>
+        <Link to="/" aria-label="Ir a la página de inicio" className="flex justify-center mb-6 text-blue-600"><MessageCircle size={40} /></Link>
         <h2 className="text-center text-3xl font-extrabold text-slate-900">Crea tu cuenta</h2>
         <p className="mt-2 text-center text-sm text-slate-600">Para activar tu asistente en WhatsApp</p>
       </FadeIn>
@@ -327,16 +331,35 @@ const AuthPage = () => {
         <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100">
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Email institucional o personal</label>
-              <input type="email" required className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" placeholder="alumno@utp.edu.pe" />
+              {/* Usamos htmlFor que coincide con el id del input */}
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700">Email institucional o personal</label>
+              <input 
+                id="email" 
+                type="email" 
+                required 
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" 
+                placeholder="alumno@utp.edu.pe" 
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Teléfono (WhatsApp)</label>
-              <input type="tel" required className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" placeholder="+51 999 999 999" />
+              <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Teléfono (WhatsApp)</label>
+              <input 
+                id="phone" 
+                type="tel" 
+                required 
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" 
+                placeholder="+51 999 999 999" 
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Contraseña</label>
-              <input type="password" required className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" placeholder="••••••••" />
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700">Contraseña</label>
+              <input 
+                id="password" 
+                type="password" 
+                required 
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors" 
+                placeholder="••••••••" 
+              />
             </div>
             <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-blue-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all">
               {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Continuar al Pago'}
