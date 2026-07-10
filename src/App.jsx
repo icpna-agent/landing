@@ -356,75 +356,79 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <FadeIn className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link to="/" aria-label="Ir a la página de inicio" className="flex justify-center mb-6 text-blue-600"><MessageCircle size={40} /></Link>
-        <h2 className="text-center text-3xl font-extrabold text-slate-900">Crea tu cuenta</h2>
-        <p className="mt-2 text-center text-sm text-slate-600">Para activar tu asistente en WhatsApp</p>
-      </FadeIn>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <FadeIn className="w-full max-w-md sm:max-w-lg">
+        <div className="bg-white/85 backdrop-blur border border-slate-200 rounded-3xl shadow-xl shadow-slate-200/70 px-6 py-8 sm:px-10 sm:py-10">
+          <div className="mb-8">
+            <Link to="/" aria-label="Ir a la página de inicio" className="flex justify-center mb-6 text-blue-600"><MessageCircle size={40} /></Link>
+            <h2 className="text-center text-3xl font-extrabold text-slate-900">Crea tu cuenta</h2>
+            <p className="mt-2 text-center text-sm text-slate-600">Para activar tu asistente en WhatsApp</p>
+          </div>
 
-      <form className="space-y-6" onSubmit={handleLogin}>
-        <div>
-          <label htmlFor="user" className="block text-sm font-medium text-slate-700">Usuario</label>
-          <input
-            id="user"
-            type="text"
-            name="user"
-            value={user}
-            onChange={(e) => setUser(e.target.value)}
-            required
-            className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-            placeholder="usuario"
-          />
+          <form className="space-y-5" onSubmit={handleLogin}>
+            <div>
+              <label htmlFor="user" className="block text-sm font-medium text-slate-700">Usuario</label>
+              <input
+                id="user"
+                type="text"
+                name="user"
+                value={user}
+                onChange={(e) => setUser(e.target.value)}
+                required
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="usuario"
+              />
+            </div>
+            <div>
+              <label htmlFor="mail" className="block text-sm font-medium text-slate-700">Email institucional o personal</label>
+              <input
+                id="mail"
+                type="email"
+                name="mail"
+                value={mail}
+                onChange={(e) => setMail(e.target.value)}
+                required
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="alumno@utp.edu.pe"
+              />
+            </div>
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Teléfono (WhatsApp)</label>
+              <input
+                id="phone"
+                type="tel"
+                name="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="+51 999 999 999"
+              />
+            </div>
+            <div>
+              <label htmlFor="pswd" className="block text-sm font-medium text-slate-700">Contraseña</label>
+              <input
+                id="pswd"
+                type="password"
+                name="pswd"
+                value={pswd}
+                onChange={(e) => setPswd(e.target.value)}
+                required
+                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="••••••••"
+              />
+            </div>
+            {message && <p className="text-sm text-red-600">{message}</p>}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-blue-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Continuar al Pago'}
+            </button>
+          </form>
         </div>
-        <div>
-          <label htmlFor="mail" className="block text-sm font-medium text-slate-700">Email institucional o personal</label>
-          <input
-            id="mail"
-            type="email"
-            name="mail"
-            value={mail}
-            onChange={(e) => setMail(e.target.value)}
-            required
-            className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-            placeholder="alumno@utp.edu.pe"
-          />
-        </div>
-        <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Teléfono (WhatsApp)</label>
-          <input
-            id="phone"
-            type="tel"
-            name="phone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
-            className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-            placeholder="+51 999 999 999"
-          />
-        </div>
-        <div>
-          <label htmlFor="pswd" className="block text-sm font-medium text-slate-700">Contraseña</label>
-          <input
-            id="pswd"
-            type="password"
-            name="pswd"
-            value={pswd}
-            onChange={(e) => setPswd(e.target.value)}
-            required
-            className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-            placeholder="••••••••"
-          />
-        </div>
-        {message && <p className="text-sm text-red-600">{message}</p>}
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-blue-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Continuar al Pago'}
-        </button>
-      </form>
+      </FadeIn>
     </div>
   );
 };

@@ -1,0 +1,11 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*",
+      "/icono.avif",
+      "/logo_completo.avif",
+      "/*.{css,scss,js,png,gif,ico,jpg,svg,avif,webp,woff,woff2,ttf,eot,json,txt,xml}"
+    ]
+  }
+}
