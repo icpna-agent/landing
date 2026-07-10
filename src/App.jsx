@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle, ArrowRight, MessageCircle, PlayCircle, Image as ImageIcon, Zap, Clock, Smartphone, Star, Menu, X } from 'lucide-react';
+import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
+
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+const MONTHLY_PLAN_PRICE = 5;
+const WHATSAPP_AGENT_NUMBER = '51936081148';
+const WHATSAPP_AGENT_URL = `https://wa.me/${WHATSAPP_AGENT_NUMBER}`;
+const normalizePhoneForEngine = (value = '') => value.replace(/[^\d]/g, '');
+const AUTH_REDIRECT = '/#planes';
+const buildAuthUrl = (mode = 'login') => `/auth?mode=${mode}&redirect=${encodeURIComponent(AUTH_REDIRECT)}`;
 
 // ==========================================
 // COMPONENTES REUTILIZABLES & ANIMACIONES
@@ -18,7 +28,7 @@ const FadeIn = ({ children, delay = 0, className = "" }) => (
   </motion.div>
 );
 
-const Navbar = () => {
+const Navbar = ({ authUser, onPay }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
     <nav className="fixed w-full top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
@@ -36,10 +46,16 @@ const Navbar = () => {
           <a href="#beneficios" className="hover:text-slate-900 transition-colors">Beneficios</a>
           <a href="#demo" className="hover:text-slate-900 transition-colors">Demo</a>
           <a href="#planes" className="hover:text-slate-900 transition-colors">Planes</a>
-          <Link to="/auth" className="text-slate-900 hover:text-blue-600 transition-colors font-semibold">Iniciar Sesión</Link>
-          <a href="#planes" className="bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5">
-            S/. 5 / mes
-          </a>
+          {authUser ? (
+            <>
+              <Link to="/dashboard" className="text-slate-900 hover:text-blue-600 transition-colors font-semibold">Mi cuenta</Link>
+              <button onClick={onPay} className="bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5">
+                Pagar S/. 5
+              </button>
+            </>
+          ) : (
+            <Link to={buildAuthUrl('login')} className="text-slate-900 hover:text-blue-600 transition-colors font-semibold">Iniciar Sesión</Link>
+          )}
         </div>
         <button 
           className="md:hidden text-slate-900" 
@@ -58,6 +74,10 @@ const Navbar = () => {
 // ==========================================
 const LandingPage = () => {
   const navigate = useNavigate();
+  const [authUser, setAuthUser] = useState(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState('');
   const [demoInput, setDemoInput] = useState('');
   const [demoChat, setDemoChat] = useState([
     { role: 'bot', text: '¡Hola! Escribe "audio 4.6", "corrige mi speaking" o "explícame present perfect".' }
@@ -65,7 +85,96 @@ const LandingPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef(null);
 
+  const getStoredToken = () => sessionStorage.getItem('authToken');
+
+  const clearSession = () => {
+    sessionStorage.removeItem('authToken');
+    sessionStorage.removeItem('refreshToken');
+    setAuthUser(null);
+  };
+
+  const loadSession = async () => {
+    const token = getStoredToken();
+    if (!token) {
+      setCheckingSession(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error || !data.body) {
+        clearSession();
+      } else {
+        setAuthUser(data.body);
+      }
+    } catch (err) {
+      clearSession();
+    } finally {
+      setCheckingSession(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSession();
+  }, []);
+
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [demoChat, isTyping]);
+
+  const handlePay = async () => {
+    const token = getStoredToken();
+
+    if (!token || !authUser) {
+      navigate(buildAuthUrl('login'));
+      return;
+    }
+
+    setIsPaying(true);
+    setPaymentMessage('');
+
+    try {
+      const paymentResponse = await fetch(`${BACKEND_URL}/payment/make-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: 'ICPNA Assistant - Suscripción mensual',
+          price: MONTHLY_PLAN_PRICE,
+          unit: 'PEN',
+          img: `${window.location.origin}/logo_completo.avif`,
+          user: authUser.user,
+          phone: authUser.phone,
+        }),
+      });
+
+      const paymentData = await paymentResponse.json();
+      const checkoutUrl = paymentData?.body?.mpLink;
+
+      if (paymentResponse.status === 401) {
+        clearSession();
+        navigate(buildAuthUrl('login'));
+        return;
+      }
+
+      if (!paymentResponse.ok || paymentData.error || !checkoutUrl) {
+        setPaymentMessage(paymentData?.message || 'No se pudo iniciar el pago. Intenta de nuevo.');
+        return;
+      }
+
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      setPaymentMessage('Error de conexión al iniciar el pago.');
+    } finally {
+      setIsPaying(false);
+    }
+  };
 
   const handleDemoSubmit = (e) => {
     e.preventDefault();
@@ -86,7 +195,7 @@ const LandingPage = () => {
 
   return (
     <div className="bg-[#f8fafc] min-h-screen font-sans selection:bg-blue-200">
-      <Navbar />
+      <Navbar authUser={authUser} onPay={handlePay} />
 
       {/* SECCIÓN 1: HERO */}
       <section className="pt-40 pb-20 px-6 max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
@@ -102,10 +211,10 @@ const LandingPage = () => {
             Escucha audios, revisa ejercicios y practica speaking sin abrir la laptop. El valor de tu material, ahora en tu bolsillo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <a href="#planes" className="bg-blue-600 text-white px-8 py-4 rounded-full text-base font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/25 flex justify-center items-center gap-2 group">
-              Activa tu asistente por S/ 5 al mes
+            <button onClick={() => authUser ? handlePay() : navigate(buildAuthUrl('login'))} className="bg-blue-600 text-white px-8 py-4 rounded-full text-base font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/25 flex justify-center items-center gap-2 group">
+              {authUser ? 'Pagar suscripción S/ 5' : 'Inicia sesión para activar'}
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-            </a>
+            </button>
             <a href="#demo" className="bg-white text-slate-700 border border-slate-200 px-8 py-4 rounded-full text-base font-semibold hover:bg-slate-50 transition-all flex justify-center items-center">
               Ver cómo funciona
             </a>
@@ -275,10 +384,25 @@ const LandingPage = () => {
                 <li className="flex items-center gap-3"><CheckCircle size={18} className="text-green-500"/> Activación inmediata</li>
               </ul>
               
-              {/* Navega a /auth antes de pagar para registrar al usuario */}
-              <button onClick={() => navigate('/auth')} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors shadow-lg flex justify-center items-center gap-2">
-                Activar Suscripción <ArrowRight size={18} />
-              </button>
+              {checkingSession ? (
+                <button disabled className="w-full py-4 bg-slate-300 text-white rounded-xl font-bold cursor-not-allowed">
+                  Revisando sesión...
+                </button>
+              ) : authUser ? (
+                <button onClick={handlePay} disabled={isPaying} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors shadow-lg flex justify-center items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                  {isPaying ? 'Preparando pago...' : 'Pagar suscripción'} <ArrowRight size={18} />
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <button onClick={() => navigate(buildAuthUrl('login'))} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors shadow-lg flex justify-center items-center gap-2">
+                    Iniciar sesión para pagar <ArrowRight size={18} />
+                  </button>
+                  <button onClick={() => navigate(buildAuthUrl('register'))} className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors">
+                    Crear cuenta nueva
+                  </button>
+                </div>
+              )}
+              {paymentMessage && <p className="mt-4 text-sm text-red-600">{paymentMessage}</p>}
             </div>
           </FadeIn>
         </div>
@@ -289,8 +413,8 @@ const LandingPage = () => {
         <FadeIn className="max-w-2xl mx-auto px-6">
           <h2 className="text-4xl font-extrabold text-white mb-6">Empieza hoy.</h2>
           <p className="text-blue-100 text-xl mb-10 font-light">Deja de buscar materiales. Empieza a aprender.</p>
-          <button onClick={() => navigate('/auth')} className="bg-white text-slate-900 px-10 py-4 rounded-full font-bold shadow-xl hover:scale-105 transition-transform">
-            Activar Suscripción
+          <button onClick={() => authUser ? handlePay() : navigate(buildAuthUrl('login'))} className="bg-white text-slate-900 px-10 py-4 rounded-full font-bold shadow-xl hover:scale-105 transition-transform">
+            {authUser ? 'Pagar ahora' : 'Iniciar sesión o crear cuenta'}
           </button>
         </FadeIn>
       </section>
@@ -307,20 +431,78 @@ const LandingPage = () => {
 // ==========================================
 const AuthPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialMode = searchParams.get('mode') === 'register' ? 'register' : 'login';
+  const [authMode, setAuthMode] = useState(initialMode);
   const [user, setUser] = useState('');
   const [mail, setMail] = useState('');
   const [phone, setPhone] = useState('');
   const [pswd, setPswd] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const redirectTo = searchParams.get('redirect') || AUTH_REDIRECT;
+
+  const switchAuthMode = (mode) => {
+    setAuthMode(mode);
+    setSearchParams({ mode, redirect: redirectTo });
+    setMessage('');
+  };
+
+  const storeTokens = (data) => {
+    sessionStorage.setItem('authToken', data.body.token);
+    sessionStorage.setItem('refreshToken', data.body.refresh || '');
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setMessage('');
 
+    if (authMode === 'login') {
+      try {
+        const response = await fetch(`${BACKEND_URL}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user,
+            pswd,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+          setMessage(data?.message || 'Usuario o contraseña incorrectos.');
+          return;
+        }
+
+        if (data.body?.token) {
+          storeTokens(data);
+          navigate(redirectTo);
+        } else {
+          setMessage('Login correcto, pero no se recibió token.');
+        }
+      } catch (err) {
+        setMessage('Error de conexión. Intenta de nuevo más tarde.');
+      } finally {
+        setIsLoading(false);
+      }
+
+      return;
+    }
+
     try {
-      const response = await fetch(`${process.env.BACKEND}/auth/register`, {
+      if (!phone || !isValidPhoneNumber(phone)) {
+        setMessage('Ingresa un número de WhatsApp válido.');
+        setIsLoading(false);
+        return;
+      }
+
+      const normalizedPhone = normalizePhoneForEngine(phone);
+
+      const response = await fetch(`${BACKEND_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -328,7 +510,7 @@ const AuthPage = () => {
         body: JSON.stringify({
           user,
           pswd,
-          phone,
+          phone: normalizedPhone,
           mail,
         }),
       });
@@ -342,9 +524,8 @@ const AuthPage = () => {
       }
 
       if (data.body?.token) {
-        sessionStorage.setItem('authToken', data.body.token);
-        sessionStorage.setItem('refreshToken', data.body.refresh || '');
-        navigate('/success');
+        storeTokens(data);
+        navigate(redirectTo);
       } else {
         setMessage('Registro completado, pero no se recibió token.');
       }
@@ -361,8 +542,29 @@ const AuthPage = () => {
         <div className="bg-white/85 backdrop-blur border border-slate-200 rounded-3xl shadow-xl shadow-slate-200/70 px-6 py-8 sm:px-10 sm:py-10">
           <div className="mb-8">
             <Link to="/" aria-label="Ir a la página de inicio" className="flex justify-center mb-6 text-blue-600"><MessageCircle size={40} /></Link>
-            <h2 className="text-center text-3xl font-extrabold text-slate-900">Crea tu cuenta</h2>
-            <p className="mt-2 text-center text-sm text-slate-600">Para activar tu asistente en WhatsApp</p>
+            <h2 className="text-center text-3xl font-extrabold text-slate-900">
+              {authMode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}
+            </h2>
+            <p className="mt-2 text-center text-sm text-slate-600">
+              {authMode === 'login' ? 'Entra a tu dashboard de suscripción' : 'Para activar tu asistente en WhatsApp'}
+            </p>
+          </div>
+
+          <div className="mb-6 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm font-bold">
+            <button
+              type="button"
+              onClick={() => switchAuthMode('login')}
+              className={`rounded-xl px-3 py-2 transition ${authMode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+            >
+              Iniciar sesión
+            </button>
+            <button
+              type="button"
+              onClick={() => switchAuthMode('register')}
+              className={`rounded-xl px-3 py-2 transition ${authMode === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+            >
+              Crear cuenta
+            </button>
           </div>
 
           <form className="space-y-5" onSubmit={handleLogin}>
@@ -379,32 +581,41 @@ const AuthPage = () => {
                 placeholder="usuario"
               />
             </div>
-            <div>
-              <label htmlFor="mail" className="block text-sm font-medium text-slate-700">Email institucional o personal</label>
-              <input
-                id="mail"
-                type="email"
-                name="mail"
-                value={mail}
-                onChange={(e) => setMail(e.target.value)}
-                required
-                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-                placeholder="alumno@utp.edu.pe"
-              />
-            </div>
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Teléfono (WhatsApp)</label>
-              <input
-                id="phone"
-                type="tel"
-                name="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-                className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-                placeholder="+51 999 999 999"
-              />
-            </div>
+            {authMode === 'register' && (
+              <>
+                <div>
+                  <label htmlFor="mail" className="block text-sm font-medium text-slate-700">Email institucional o personal</label>
+                  <input
+                    id="mail"
+                    type="email"
+                    name="mail"
+                    value={mail}
+                    onChange={(e) => setMail(e.target.value)}
+                    required={authMode === 'register'}
+                    className="mt-1 appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                    placeholder="alumno@utp.edu.pe"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Teléfono (WhatsApp)</label>
+                  <PhoneInput
+                    id="phone"
+                    name="phone"
+                    international
+                    defaultCountry="PE"
+                    countryCallingCodeEditable={false}
+                    value={phone}
+                    onChange={(value) => setPhone(value || '')}
+                    required={authMode === 'register'}
+                    className="phone-input mt-1"
+                    placeholder="929 073 820"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Se guardará sin símbolos: {phone ? normalizePhoneForEngine(phone) : '51929073820'}
+                  </p>
+                </div>
+              </>
+            )}
             <div>
               <label htmlFor="pswd" className="block text-sm font-medium text-slate-700">Contraseña</label>
               <input
@@ -424,7 +635,7 @@ const AuthPage = () => {
               disabled={isLoading}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-blue-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Continuar al Pago'}
+              {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : authMode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
             </button>
           </form>
         </div>
@@ -463,7 +674,7 @@ const DashboardPage = () => {
 
   const refreshTokens = async (refreshToken) => {
     try {
-      const refreshResponse = await fetch('http://localhost:3000/auth/refresh', {
+      const refreshResponse = await fetch(`${BACKEND_URL}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -497,7 +708,7 @@ const DashboardPage = () => {
     }
 
     try {
-      let response = await fetch('http://localhost:3000/auth/me', {
+      let response = await fetch(`${BACKEND_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -518,7 +729,7 @@ const DashboardPage = () => {
           return;
         }
 
-        response = await fetch('http://localhost:3000/auth/me', {
+        response = await fetch(`${BACKEND_URL}/auth/me`, {
           headers: {
             Authorization: `Bearer ${refreshed.token}`,
           },
@@ -583,10 +794,6 @@ const DashboardPage = () => {
                 <div className="bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs font-semibold text-slate-600">Plan: S/. 5/mes</div>
               </div>
               <p className="text-sm text-slate-600 mb-6">Tu número {me?.phone || '+51 987 654 321'} está vinculado y autorizado en el motor de IA.</p>
-              <div className="flex gap-3">
-                <button className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition">Gestionar Pago</button>
-                <button className="bg-slate-100 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">Cancelar</button>
-              </div>
             </FadeIn>
 
             {/* Card Quick Action */}
@@ -594,7 +801,14 @@ const DashboardPage = () => {
               <MessageCircle size={40} className="mb-4 opacity-80" />
               <h3 className="font-bold mb-2">Hablar con el Bot</h3>
               <p className="text-xs text-blue-100 mb-4">Abre WhatsApp para empezar a practicar.</p>
-              <a href="#" className="bg-white text-blue-600 px-6 py-2 rounded-full text-sm font-bold w-full hover:bg-blue-50 transition">Abrir WhatsApp</a>
+              <a
+                href={WHATSAPP_AGENT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white text-blue-600 px-6 py-2 rounded-full text-sm font-bold w-full hover:bg-blue-50 transition"
+              >
+                Abrir WhatsApp
+              </a>
             </FadeIn>
           </div>
         )}
@@ -607,7 +821,7 @@ const DashboardPage = () => {
                 <tr><th className="p-4">Fecha</th><th className="p-4">Monto</th><th className="p-4">Estado</th><th className="p-4">Factura</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                <tr><td className="p-4">12 Jun 2026</td><td className="p-4 font-medium">S/. 5.00</td><td className="p-4"><span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Pagado</span></td><td className="p-4 text-blue-600 cursor-pointer hover:underline">Descargar</td></tr>
+                <tr><td className="p-4">12 Jun 2026</td><td className="p-4 font-medium">S/. 5.00</td><td className="p-4"><span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Pagado</span></td><td className="p-4 text-slate-400">No disponible</td></tr>
               </tbody>
             </table>
           </div>
