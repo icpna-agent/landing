@@ -8,10 +8,12 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "jest"
+    "test": "jest",
+    "test:bdd": "cucumber-js"
   },
   "dependencies": {
     "@stripe/stripe-js": "^9.8.0",
+    "dotenv": "^17.4.2",
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
@@ -21,6 +23,7 @@
   "devDependencies": {
     "@babel/preset-env": "^7.29.7",
     "@babel/preset-react": "^7.29.7",
+    "@cucumber/cucumber": "^12.9.0",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
