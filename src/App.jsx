@@ -5,7 +5,7 @@ import { CheckCircle, ArrowRight, MessageCircle, PlayCircle, Image as ImageIcon,
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 
-const BACKEND_URL = (globalThis.__ICPNA_BACKEND_URL__ || 'http://localhost:3001').replace(/\/+$/, '');
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const WHATSAPP_AGENT_NUMBER = '51936081148';
 const WHATSAPP_AGENT_URL = `https://wa.me/${WHATSAPP_AGENT_NUMBER}`;
 const normalizePhoneForEngine = (value = '') => value.replace(/[^\d]/g, '');
