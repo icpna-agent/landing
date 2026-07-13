@@ -1,70 +1,122 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import App from '../src/App';
 
-describe('Suite de Pruebas Críticas (20% TDD) - ICPNA Assistant', () => {
-  
-  // Limpiamos los mocks antes de cada prueba
+describe('ICPNA Assistant critical flows', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
+    window.history.pushState({}, 'Test', '/');
+    global.fetch = jest.fn();
   });
 
-  test('1. CRÍTICO: El Navbar renderiza el logo y los textos actualizados correctamente', () => {
+  test('renders the brand and primary navigation', () => {
     render(<App />);
-    
-    // 1. Buscamos el Navbar específicamente usando su rol HTML (nav)
-    const navElement = screen.getByRole('navigation');
-    
-    // 2. Usamos "within" para buscar SOLO dentro de ese Navbar
-    const logo = within(navElement).getByAltText(/Logo ICPNA/i);
-    expect(logo).toBeInTheDocument();
+    const navigation = screen.getByRole('navigation');
 
-    const brandText = within(navElement).getByText(/Assistant/i);
-    expect(brandText).toBeInTheDocument();
+    expect(within(navigation).getByAltText('Logo ICPNA')).toBeInTheDocument();
+    expect(within(navigation).getByRole('link', { name: 'Iniciar Sesión' })).toBeInTheDocument();
   });
 
-  test('2. CRÍTICO: La navegación de la Landing al AuthPage funciona', () => {
+  test('navigates from the landing to login', () => {
     render(<App />);
-    
-    // Buscamos el botón de Iniciar Sesión en el Navbar
-    const loginLink = screen.getByRole('link', { name: /Iniciar Sesión/i });
-    
-    // Simulamos el clic del usuario
-    fireEvent.click(loginLink);
-    
-    // Verificamos que el enrutador nos llevó a la pantalla correcta
-    const authHeader = screen.getByRole('heading', { name: /Crea tu cuenta/i });
-    expect(authHeader).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Iniciar Sesión' }));
+
+    expect(screen.getByRole('heading', { name: 'Inicia sesión' })).toBeInTheDocument();
   });
 
-  test('3. CRÍTICO (TDD): El formulario de Auth deshabilita el botón al enviar', async () => {
-    // Rendereamos la App y navegamos manualmente al Auth para aislar la prueba
-    window.history.pushState({}, 'Test page', '/auth');
+  test('disables registration submission while the request is pending', () => {
+    window.history.pushState({}, 'Register', '/auth?mode=register&redirect=%2Fdashboard');
+    global.fetch.mockImplementation(() => new Promise(() => {}));
     render(<App />);
 
-    // Seleccionamos los inputs y el botón
-    const emailInput = screen.getByPlaceholderText('alumno@utp.edu.pe');
-    const phoneInput = screen.getByPlaceholderText('+51 999 999 999');
-    const passwordInput = screen.getByPlaceholderText('••••••••');
-    const submitButton = screen.getByRole('button', { name: /Continuar al Pago/i });
+    fireEvent.change(screen.getByLabelText('Usuario'), { target: { value: 'codex_test' } });
+    fireEvent.change(screen.getByLabelText('Email institucional o personal'), {
+      target: { value: 'codex_test@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Teléfono (WhatsApp)'), {
+      target: { value: '929073820' },
+    });
+    fireEvent.change(screen.getByLabelText('Contraseña'), {
+      target: { value: 'CodexTest_2026!' },
+    });
 
-    // Simulamos que el usuario llena sus datos
-    fireEvent.change(emailInput, { target: { value: 'andre@utp.edu.pe' } });
-    fireEvent.change(phoneInput, { target: { value: '987654321' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    const submit = document.querySelector('form button[type="submit"]');
+    fireEvent.click(submit);
 
-    // Hacemos el envío del formulario
-    fireEvent.click(submitButton);
+    expect(submit).toBeDisabled();
+  });
 
-    // TDD: El botón debe deshabilitarse para evitar doble envío mientras carga
-    expect(submitButton).toBeDisabled();
+  test('shows a new authenticated user without an active subscription or fake payments', async () => {
+    localStorage.setItem('authToken', 'test-token');
+    window.history.pushState({}, 'Dashboard', '/dashboard');
+    global.fetch.mockImplementation((url) => {
+      if (String(url).endsWith('/auth/me')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ error: false, body: { id: 7, user: 'codex_test', phone: '51929073820' } }),
+        });
+      }
+      if (String(url).endsWith('/payment/subscription-status')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            error: false,
+            body: { status: 'inactive', plan: 'basic', expiryDate: null, isActive: false },
+          }),
+        });
+      }
+      if (String(url).endsWith('/payment/history')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ error: false, body: [] }),
+        });
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
 
-    // TDD: Esperamos que termine el "mock" de carga (1.5 segundos en tu código actual)
+    render(<App />);
+
+    expect(await screen.findByText('Sin suscripción')).toBeInTheDocument();
+    expect(screen.getByText('Aún no tienes pagos registrados.')).toBeInTheDocument();
+    expect(screen.queryByText('12 Jun 2026')).not.toBeInTheDocument();
+  });
+
+  test('does not offer another navbar payment to an active subscriber', async () => {
+    localStorage.setItem('authToken', 'test-token');
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ error: false, body: { id: 7, user: 'codex_test', phone: '51929073820' } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          error: false,
+          body: { status: 'active', plan: 'basic', expiryDate: '2026-08-13T00:00:00.000Z', isActive: true },
+        }),
+      });
+
+    render(<App />);
+    const navigation = screen.getByRole('navigation');
+
+    expect(await within(navigation).findByRole('link', { name: 'Suscripción activa' })).toBeInTheDocument();
+    expect(within(navigation).queryByRole('button', { name: 'Pagar S/. 5' })).not.toBeInTheDocument();
+  });
+
+  test('does not claim payment success without a verifiable payment id', async () => {
+    window.history.pushState({}, 'Payment return', '/success');
+    render(<App />);
+
     await waitFor(() => {
-      // Debería redirigir a la pantalla de éxito
-      expect(screen.getByText(/¡Pago exitoso!/i)).toBeInTheDocument();
-    }, { timeout: 2000 }); 
+      expect(screen.getByText('No pudimos verificar el pago. Inicia sesión y revisa tu dashboard.')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('¡Pago confirmado!')).not.toBeInTheDocument();
   });
-
 });

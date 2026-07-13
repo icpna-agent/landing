@@ -7,8 +7,8 @@ global.TextDecoder = TextDecoder;
 // MOCK DE FRAMER MOTION: Le decimos a Jest que ignore las animaciones
 jest.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }) => <div {...props}>{children}</div>,
-    section: ({ children, ...props }) => <section {...props}>{children}</section>,
+    div: ({ children, initial, whileInView, viewport, transition, ...props }) => <div {...props}>{children}</div>,
+    section: ({ children, initial, whileInView, viewport, transition, ...props }) => <section {...props}>{children}</section>,
     // Agrega aquí otros elementos que uses, ej: p, span, etc.
   },
   AnimatePresence: ({ children }) => <>{children}</>,

@@ -5,13 +5,23 @@ import { CheckCircle, ArrowRight, MessageCircle, PlayCircle, Image as ImageIcon,
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
-const MONTHLY_PLAN_PRICE = 5;
+const BACKEND_URL = (globalThis.__ICPNA_BACKEND_URL__ || 'http://localhost:3001').replace(/\/+$/, '');
 const WHATSAPP_AGENT_NUMBER = '51936081148';
 const WHATSAPP_AGENT_URL = `https://wa.me/${WHATSAPP_AGENT_NUMBER}`;
 const normalizePhoneForEngine = (value = '') => value.replace(/[^\d]/g, '');
 const AUTH_REDIRECT = '/#planes';
 const buildAuthUrl = (mode = 'login') => `/auth?mode=${mode}&redirect=${encodeURIComponent(AUTH_REDIRECT)}`;
+const startPayment = async (token) => {
+  const response = await fetch(`${BACKEND_URL}/payment/make-payment`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json();
+  if (!response.ok || data.error || !data.body?.mpLink) {
+    throw new Error(data?.message || data?.body?.message || 'No se pudo iniciar el pago.');
+  }
+  return data.body;
+};
 
 // ==========================================
 // COMPONENTES REUTILIZABLES & ANIMACIONES
@@ -28,7 +38,7 @@ const FadeIn = ({ children, delay = 0, className = "" }) => (
   </motion.div>
 );
 
-const Navbar = ({ authUser, onPay }) => {
+const Navbar = ({ authUser, subscriptionActive, onPay }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
     <nav className="fixed w-full top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
@@ -49,9 +59,15 @@ const Navbar = ({ authUser, onPay }) => {
           {authUser ? (
             <>
               <Link to="/dashboard" className="text-slate-900 hover:text-blue-600 transition-colors font-semibold">Mi cuenta</Link>
-              <button onClick={onPay} className="bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5">
-                Pagar S/. 5
-              </button>
+              {subscriptionActive ? (
+                <Link to="/dashboard" className="bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5">
+                  Suscripción activa
+                </Link>
+              ) : (
+                <button onClick={onPay} className="bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5">
+                  Pagar S/. 5
+                </button>
+              )}
             </>
           ) : (
             <Link to={buildAuthUrl('login')} className="text-slate-900 hover:text-blue-600 transition-colors font-semibold">Iniciar Sesión</Link>
@@ -65,6 +81,27 @@ const Navbar = ({ authUser, onPay }) => {
           {isOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
+      {isOpen && (
+        <div className="md:hidden border-t border-slate-200 bg-white px-6 py-4 shadow-lg">
+          <div className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            <a href="#beneficios" onClick={() => setIsOpen(false)} className="rounded-lg px-3 py-3 hover:bg-slate-50">Beneficios</a>
+            <a href="#demo" onClick={() => setIsOpen(false)} className="rounded-lg px-3 py-3 hover:bg-slate-50">Demo</a>
+            <a href="#planes" onClick={() => setIsOpen(false)} className="rounded-lg px-3 py-3 hover:bg-slate-50">Planes</a>
+            {authUser ? (
+              <>
+                <Link to="/dashboard" onClick={() => setIsOpen(false)} className="rounded-lg px-3 py-3 hover:bg-slate-50">Mi cuenta</Link>
+                {subscriptionActive ? (
+                  <Link to="/dashboard" onClick={() => setIsOpen(false)} className="mt-2 rounded-xl bg-slate-900 px-4 py-3 text-center text-white">Suscripción activa</Link>
+                ) : (
+                  <button onClick={() => { setIsOpen(false); onPay(); }} className="mt-2 rounded-xl bg-slate-900 px-4 py-3 text-white">Pagar S/. 5</button>
+                )}
+              </>
+            ) : (
+              <Link to={buildAuthUrl('login')} onClick={() => setIsOpen(false)} className="mt-2 rounded-xl bg-slate-900 px-4 py-3 text-center text-white">Iniciar sesión</Link>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
@@ -75,6 +112,7 @@ const Navbar = ({ authUser, onPay }) => {
 const LandingPage = () => {
   const navigate = useNavigate();
   const [authUser, setAuthUser] = useState(null);
+  const [subscriptionActive, setSubscriptionActive] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [isPaying, setIsPaying] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
@@ -85,11 +123,11 @@ const LandingPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef(null);
 
-  const getStoredToken = () => sessionStorage.getItem('authToken');
+  const getStoredToken = () => localStorage.getItem('authToken');
 
   const clearSession = () => {
-    sessionStorage.removeItem('authToken');
-    sessionStorage.removeItem('refreshToken');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
     setAuthUser(null);
   };
 
@@ -112,6 +150,15 @@ const LandingPage = () => {
         clearSession();
       } else {
         setAuthUser(data.body);
+        try {
+          const subscriptionResponse = await fetch(`${BACKEND_URL}/payment/subscription-status`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const subscriptionData = await subscriptionResponse.json();
+          setSubscriptionActive(Boolean(subscriptionResponse.ok && !subscriptionData.error && subscriptionData.body?.isActive));
+        } catch {
+          setSubscriptionActive(false);
+        }
       }
     } catch (err) {
       clearSession();
@@ -138,39 +185,10 @@ const LandingPage = () => {
     setPaymentMessage('');
 
     try {
-      const paymentResponse = await fetch(`${BACKEND_URL}/payment/make-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: 'ICPNA Assistant - Suscripción mensual',
-          price: MONTHLY_PLAN_PRICE,
-          unit: 'PEN',
-          img: `${window.location.origin}/logo_completo.avif`,
-          user: authUser.user,
-          phone: authUser.phone,
-        }),
-      });
-
-      const paymentData = await paymentResponse.json();
-      const checkoutUrl = paymentData?.body?.mpLink;
-
-      if (paymentResponse.status === 401) {
-        clearSession();
-        navigate(buildAuthUrl('login'));
-        return;
-      }
-
-      if (!paymentResponse.ok || paymentData.error || !checkoutUrl) {
-        setPaymentMessage(paymentData?.message || 'No se pudo iniciar el pago. Intenta de nuevo.');
-        return;
-      }
-
-      window.location.href = checkoutUrl;
+      const payment = await startPayment(token);
+      window.location.href = payment.mpLink;
     } catch (err) {
-      setPaymentMessage('Error de conexión al iniciar el pago.');
+      setPaymentMessage(err instanceof Error ? err.message : 'Error de conexión al iniciar el pago.');
     } finally {
       setIsPaying(false);
     }
@@ -194,8 +212,8 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="bg-[#f8fafc] min-h-screen font-sans selection:bg-blue-200">
-      <Navbar authUser={authUser} onPay={handlePay} />
+    <div className="bg-[#f8fafc] min-h-screen overflow-x-hidden font-sans selection:bg-blue-200">
+      <Navbar authUser={authUser} subscriptionActive={subscriptionActive} onPay={handlePay} />
 
       {/* SECCIÓN 1: HERO */}
       <section className="pt-40 pb-20 px-6 max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
@@ -211,8 +229,8 @@ const LandingPage = () => {
             Escucha audios, revisa ejercicios y practica speaking sin abrir la laptop. El valor de tu material, ahora en tu bolsillo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <button onClick={() => authUser ? handlePay() : navigate(buildAuthUrl('login'))} className="bg-blue-600 text-white px-8 py-4 rounded-full text-base font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/25 flex justify-center items-center gap-2 group">
-              {authUser ? 'Pagar suscripción S/ 5' : 'Inicia sesión para activar'}
+            <button onClick={() => subscriptionActive ? navigate('/dashboard') : authUser ? handlePay() : navigate(buildAuthUrl('login'))} className="bg-blue-600 text-white px-8 py-4 rounded-full text-base font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/25 flex justify-center items-center gap-2 group">
+              {subscriptionActive ? 'Ir a mi dashboard' : authUser ? 'Pagar suscripción S/ 5' : 'Inicia sesión para activar'}
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
             <a href="#demo" className="bg-white text-slate-700 border border-slate-200 px-8 py-4 rounded-full text-base font-semibold hover:bg-slate-50 transition-all flex justify-center items-center">
@@ -223,7 +241,7 @@ const LandingPage = () => {
 
         {/* Mockup WhatsApp Visual Obligatorio */}
         <FadeIn delay={0.2} className="flex justify-center lg:justify-end relative">
-          <div className="absolute inset-0 bg-gradient-to-tr from-blue-200 to-emerald-100 rounded-full blur-3xl opacity-40 scale-150"></div>
+          <div className="absolute inset-6 bg-blue-100 rounded-full blur-3xl opacity-50"></div>
           <div className="w-[320px] bg-slate-900 rounded-[3rem] p-2 shadow-2xl relative z-10 border-[6px] border-slate-800">
             <div className="bg-[#efeae2] w-full h-[600px] rounded-[2.5rem] overflow-hidden flex flex-col relative">
               <div className="bg-[#004739] text-white px-4 py-3 flex items-center gap-3 pt-8 shadow-sm z-10">
@@ -328,16 +346,16 @@ const LandingPage = () => {
         <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-16">
           <FadeIn>
             <h3 className="text-2xl font-bold mb-8">El motor detrás del bot</h3>
-            <div className="bg-slate-50 p-8 rounded-3xl border border-slate-200 flex items-center justify-between">
-              <div className="space-y-4">
+            <div className="bg-slate-50 p-5 sm:p-8 rounded-3xl border border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:justify-between">
+              <div className="grid grid-cols-3 gap-2 sm:block sm:space-y-4">
                 <div className="bg-white p-3 rounded-xl shadow-sm text-sm font-medium border border-slate-100">📝 Texto</div>
                 <div className="bg-white p-3 rounded-xl shadow-sm text-sm font-medium border border-slate-100">🎙️ Audio</div>
                 <div className="bg-white p-3 rounded-xl shadow-sm text-sm font-medium border border-slate-100">📷 Imagen</div>
               </div>
-              <ArrowRight className="text-blue-500" size={32} />
-              <div className="bg-slate-900 text-white p-6 rounded-2xl font-bold text-center shadow-lg"><Zap className="mx-auto mb-2 text-yellow-400"/> IA Engine</div>
-              <ArrowRight className="text-blue-500" size={32} />
-              <div className="space-y-4">
+              <ArrowRight className="hidden sm:block shrink-0 text-blue-500" size={28} />
+              <div className="bg-slate-900 text-white p-5 rounded-2xl font-bold text-center shadow-lg"><Zap className="mx-auto mb-2 text-yellow-400"/> IA Engine</div>
+              <ArrowRight className="hidden sm:block shrink-0 text-blue-500" size={28} />
+              <div className="grid grid-cols-3 gap-2 sm:block sm:space-y-4">
                 <div className="bg-blue-50 text-blue-700 p-3 rounded-xl shadow-sm text-sm font-bold border border-blue-100">Respuestas</div>
                 <div className="bg-blue-50 text-blue-700 p-3 rounded-xl shadow-sm text-sm font-bold border border-blue-100">Audios IA</div>
                 <div className="bg-blue-50 text-blue-700 p-3 rounded-xl shadow-sm text-sm font-bold border border-blue-100">Solucionarios</div>
@@ -347,8 +365,8 @@ const LandingPage = () => {
 
           <FadeIn delay={0.2}>
             <h3 className="text-2xl font-bold mb-8">Comparación</h3>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm text-sm">
-              <table className="w-full text-left">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm text-sm">
+              <table className="w-full min-w-[34rem] text-left">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
                   <tr><th className="p-4">Característica</th><th className="p-4 text-center">Tradicional</th><th className="p-4 text-center text-blue-600 bg-blue-50/50">Asistente</th></tr>
                 </thead>
@@ -368,7 +386,7 @@ const LandingPage = () => {
         <div className="max-w-lg mx-auto px-6 text-center">
           <FadeIn>
             <h2 className="text-4xl font-extrabold text-slate-900 mb-4">Suscripción Simple</h2>
-            <p className="text-slate-600 mb-10">Menos de S/. 0.17 por día. Cancela cuando quieras.</p>
+            <p className="text-slate-600 mb-10">Menos de S/. 0.17 por día. Renueva solo cuando lo necesites.</p>
             
             <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-200 relative">
               <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-t-[2.5rem]"></div>
@@ -380,7 +398,7 @@ const LandingPage = () => {
               <ul className="space-y-4 text-sm text-slate-600 text-left mb-10 w-max mx-auto">
                 <li className="flex items-center gap-3"><CheckCircle size={18} className="text-green-500"/> Acceso total vía WhatsApp</li>
                 <li className="flex items-center gap-3"><CheckCircle size={18} className="text-green-500"/> Historial en Dashboard web</li>
-                <li className="flex items-center gap-3"><CheckCircle size={18} className="text-green-500"/> Soporte técnico 24/7</li>
+                <li className="flex items-center gap-3"><CheckCircle size={18} className="text-green-500"/> Historial de pagos en tu dashboard</li>
                 <li className="flex items-center gap-3"><CheckCircle size={18} className="text-green-500"/> Activación inmediata</li>
               </ul>
               
@@ -420,7 +438,7 @@ const LandingPage = () => {
       </section>
       
       <footer className="bg-slate-950 py-10 text-center text-slate-500 text-sm">
-        <p>Frontend Mockup - ICPNA Assistant 2026. Proyecto Universitario.</p>
+        <p>ICPNA Assistant 2026.</p>
       </footer>
     </div>
   );
@@ -449,8 +467,8 @@ const AuthPage = () => {
   };
 
   const storeTokens = (data) => {
-    sessionStorage.setItem('authToken', data.body.token);
-    sessionStorage.setItem('refreshToken', data.body.refresh || '');
+    localStorage.setItem('authToken', data.body.token);
+    localStorage.setItem('refreshToken', data.body.refresh || '');
   };
 
   const handleLogin = async (e) => {
@@ -648,29 +666,129 @@ const AuthPage = () => {
 // PÁGINA 3: SUCCESS (Ruta: /success)
 // ==========================================
 const SuccessPage = () => {
+  const [searchParams] = useSearchParams();
+  const [state, setState] = useState({ status: 'loading', message: 'Verificando tu pago con Mercado Pago...' });
+
+  useEffect(() => {
+    const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id');
+    const returnStatus = searchParams.get('status') || searchParams.get('collection_status') || searchParams.get('result');
+    const token = localStorage.getItem('authToken');
+
+    if (returnStatus === 'failure' || returnStatus === 'rejected') {
+      setState({ status: 'error', message: 'El pago fue rechazado o cancelado. No se activó ninguna suscripción.' });
+      return;
+    }
+    if (returnStatus === 'pending' || returnStatus === 'in_process') {
+      setState({ status: 'pending', message: 'El pago está pendiente. Actualizaremos tu cuenta cuando Mercado Pago lo confirme.' });
+      return;
+    }
+    if (!token || !paymentId) {
+      setState({ status: 'error', message: 'No pudimos verificar el pago. Inicia sesión y revisa tu dashboard.' });
+      return;
+    }
+
+    fetch(`${BACKEND_URL}/payment/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ paymentId }),
+    })
+      .then(async (response) => ({ response, data: await response.json() }))
+      .then(({ response, data }) => {
+        if (!response.ok || data.error || !data.body?.subscriptionActive) {
+          throw new Error(data?.message || 'Mercado Pago todavía no confirmó la activación.');
+        }
+        setState({ status: 'success', message: 'Tu suscripción está activa y el pago quedó registrado.' });
+      })
+      .catch((error) => setState({ status: 'error', message: error.message || 'No se pudo verificar el pago.' }));
+  }, [searchParams]);
+
+  const isSuccess = state.status === 'success';
+  const isLoading = state.status === 'loading';
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center px-6">
       <FadeIn className="bg-white p-10 rounded-3xl shadow-xl border border-slate-100 text-center max-w-md w-full">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle className="text-green-500" size={40} />
+        <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isSuccess ? 'bg-green-100' : isLoading ? 'bg-blue-100' : 'bg-amber-100'}`}>
+          {isSuccess ? <CheckCircle className="text-green-500" size={40} /> : isLoading ? <div className="w-9 h-9 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin" /> : <Clock className="text-amber-600" size={40} />}
         </div>
-        <h2 className="text-3xl font-extrabold text-slate-900 mb-4">¡Pago exitoso!</h2>
-        <p className="text-slate-600 mb-8">Tu suscripción está activa. El número de WhatsApp ha sido habilitado en nuestro motor.</p>
+        <h2 className="text-3xl font-extrabold text-slate-900 mb-4">{isSuccess ? '¡Pago confirmado!' : isLoading ? 'Verificando pago' : 'Estado del pago'}</h2>
+        <p className="text-slate-600 mb-8">{state.message}</p>
         <Link to="/dashboard" className="w-full block bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-md">
-          Ir a mi Dashboard
+          Revisar mi dashboard
         </Link>
       </FadeIn>
     </div>
   );
 };
 
+const SkeletonBlock = ({ className = '' }) => (
+  <div className={`animate-pulse rounded-lg bg-slate-200/80 ${className}`} />
+);
+
+const DashboardSkeleton = () => (
+  <div className="space-y-12">
+    <div className="grid gap-6 md:grid-cols-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:col-span-2">
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div className="space-y-3">
+            <SkeletonBlock className="h-4 w-36" />
+            <div className="flex items-center gap-3">
+              <SkeletonBlock className="h-3 w-3 rounded-full" />
+              <SkeletonBlock className="h-8 w-32" />
+            </div>
+          </div>
+          <SkeletonBlock className="h-7 w-28 rounded-full" />
+        </div>
+        <div className="space-y-3">
+          <SkeletonBlock className="h-4 w-full max-w-xl" />
+          <SkeletonBlock className="h-4 w-3/5" />
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-gradient-to-br from-slate-200 to-slate-300 p-6 shadow-sm">
+        <div className="flex h-full min-h-40 flex-col items-center justify-center text-center">
+          <SkeletonBlock className="mb-5 h-12 w-12 rounded-full bg-white/50" />
+          <SkeletonBlock className="mb-3 h-5 w-32 bg-white/60" />
+          <SkeletonBlock className="mb-5 h-3 w-44 bg-white/50" />
+          <SkeletonBlock className="h-9 w-full rounded-full bg-white/70" />
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <SkeletonBlock className="mb-4 h-7 w-44" />
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="grid grid-cols-4 gap-4 border-b border-slate-100 bg-slate-50 p-4">
+          <SkeletonBlock className="h-4 w-20" />
+          <SkeletonBlock className="h-4 w-20" />
+          <SkeletonBlock className="h-4 w-20" />
+          <SkeletonBlock className="h-4 w-24" />
+        </div>
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="grid grid-cols-4 gap-4 border-b border-slate-100 p-4 last:border-b-0">
+            <SkeletonBlock className="h-4 w-24" />
+            <SkeletonBlock className="h-4 w-16" />
+            <SkeletonBlock className="h-6 w-20" />
+            <SkeletonBlock className="h-4 w-28" />
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
 // ==========================================
 // PÁGINA 4: DASHBOARD (Ruta: /dashboard)
 // ==========================================
 const DashboardPage = () => {
+  const navigate = useNavigate();
   const [me, setMe] = useState(null);
   const [loadingMe, setLoadingMe] = useState(true);
   const [meError, setMeError] = useState('');
+  const [subscription, setSubscription] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [billingMessage, setBillingMessage] = useState('');
+  const [isPaying, setIsPaying] = useState(false);
 
   const refreshTokens = async (refreshToken) => {
     try {
@@ -691,8 +809,8 @@ const DashboardPage = () => {
         return null;
       }
 
-      sessionStorage.setItem('authToken', refreshData.body.token);
-      sessionStorage.setItem('refreshToken', refreshData.body.refresh || '');
+      localStorage.setItem('authToken', refreshData.body.token);
+      localStorage.setItem('refreshToken', refreshData.body.refresh || '');
       return refreshData.body;
     } catch (err) {
       return null;
@@ -700,7 +818,7 @@ const DashboardPage = () => {
   };
 
   const loadProfile = async () => {
-    const token = sessionStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken');
     if (!token) {
       setMeError('No se encontró el token de autenticación.');
       setLoadingMe(false);
@@ -708,6 +826,7 @@ const DashboardPage = () => {
     }
 
     try {
+      let activeToken = token;
       let response = await fetch(`${BACKEND_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -715,7 +834,7 @@ const DashboardPage = () => {
       });
 
       if (response.status === 401) {
-        const refreshToken = sessionStorage.getItem('refreshToken');
+        const refreshToken = localStorage.getItem('refreshToken');
         if (!refreshToken) {
           setMeError('Sesión expirada. Por favor, regresa y crea tu cuenta de nuevo.');
           setLoadingMe(false);
@@ -734,6 +853,7 @@ const DashboardPage = () => {
             Authorization: `Bearer ${refreshed.token}`,
           },
         });
+        activeToken = refreshed.token;
       }
 
       const data = await response.json();
@@ -741,6 +861,7 @@ const DashboardPage = () => {
         setMeError(data?.message || 'No se pudo obtener los datos del usuario.');
       } else {
         setMe(data.body);
+        await loadBilling(activeToken);
       }
     } catch (err) {
       setMeError('Error de conexión al recuperar el perfil.');
@@ -749,31 +870,90 @@ const DashboardPage = () => {
     }
   };
 
+  const loadBilling = async (token) => {
+    const headers = { Authorization: `Bearer ${token}` };
+    const [statusResponse, historyResponse] = await Promise.all([
+      fetch(`${BACKEND_URL}/payment/subscription-status`, { headers }),
+      fetch(`${BACKEND_URL}/payment/history`, { headers }),
+    ]);
+    const [statusData, historyData] = await Promise.all([statusResponse.json(), historyResponse.json()]);
+    if (!statusResponse.ok || statusData.error) throw new Error(statusData?.message || 'No se pudo consultar la suscripción.');
+    if (!historyResponse.ok || historyData.error) throw new Error(historyData?.message || 'No se pudo consultar el historial.');
+    setSubscription(statusData.body);
+    setPaymentHistory(historyData.body || []);
+  };
+
+  const handleDashboardPay = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      navigate(buildAuthUrl('login'));
+      return;
+    }
+    setIsPaying(true);
+    setBillingMessage('');
+    try {
+      const payment = await startPayment(token);
+      window.location.href = payment.mpLink;
+    } catch (error) {
+      setBillingMessage(error instanceof Error ? error.message : 'No se pudo iniciar el pago.');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const logout = async () => {
+    const token = localStorage.getItem('authToken');
+    try {
+      if (token) {
+        await fetch(`${BACKEND_URL}/auth/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } finally {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      navigate(buildAuthUrl('login'), { replace: true });
+    }
+  };
+
+  const formatPaymentDate = (value) => new Date(value).toLocaleDateString('es-PE', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+
+  const statusLabel = (status) => ({
+    approved: 'Pagado', pending: 'Pendiente', rejected: 'Rechazado', cancelled: 'Cancelado', refunded: 'Reembolsado', failed: 'Fallido',
+  }[status] || status);
+
   useEffect(() => {
     loadProfile();
   }, []);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-        <Link to="/" className="flex items-center gap-2 h-8">
+      <nav className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex justify-between items-center gap-3">
+        <Link to="/" className="flex min-w-0 items-center gap-2 h-8">
           <img src="/logo_completo.avif" alt="Logo ICPNA" className="h-full w-auto object-contain" />
-          <span className="font-bold text-lg text-blue-600">Assistant</span>
+          <span className="hidden sm:inline font-bold text-lg text-blue-600">Assistant</span>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">AI</div>
-          <span className="text-sm font-medium text-slate-700">{me?.user || 'Usuario'}</span>
+          <span className="max-w-28 sm:max-w-48 truncate text-sm font-medium text-slate-700">{me?.user || 'Usuario'}</span>
+          <button onClick={logout} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">Salir</button>
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-6 py-12">
+      <main className="mx-auto max-w-5xl px-5 py-10 sm:px-6 sm:py-14">
         <FadeIn>
-          <h1 className="text-3xl font-bold text-slate-900 mb-8">Mi Suscripción</h1>
+          <div className="mb-9">
+            <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-600">Dashboard</p>
+            <h1 className="text-3xl font-bold text-slate-900">Mi Suscripción</h1>
+          </div>
         </FadeIn>
 
         {loadingMe ? (
           <FadeIn>
-            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm text-slate-600">Cargando perfil...</div>
+            <DashboardSkeleton />
           </FadeIn>
         ) : meError ? (
           <FadeIn>
@@ -781,51 +961,67 @@ const DashboardPage = () => {
           </FadeIn>
         ) : (
           <div className="grid md:grid-cols-3 gap-6 mb-12">
-            {/* Card Estado */}
-            <FadeIn delay={0.1} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-2">
+            <FadeIn delay={0.1} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h3 className="text-sm font-medium text-slate-500 mb-1">Estado de la cuenta</h3>
                   <div className="flex items-center gap-2">
-                    <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>
-                    <span className="text-2xl font-bold text-slate-900">Activo</span>
+                    <span className={`relative inline-flex rounded-full h-3 w-3 ${subscription?.isActive ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+                    <span className="text-2xl font-bold text-slate-900">{subscription?.isActive ? 'Activo' : 'Sin suscripción'}</span>
                   </div>
                 </div>
                 <div className="bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs font-semibold text-slate-600">Plan: S/. 5/mes</div>
               </div>
-              <p className="text-sm text-slate-600 mb-6">Tu número {me?.phone || '+51 987 654 321'} está vinculado y autorizado en el motor de IA.</p>
+              <p className="text-sm text-slate-600 mb-6">
+                {subscription?.isActive
+                  ? `Tu número ${me?.phone} está vinculado y autorizado hasta ${new Date(subscription.expiryDate).toLocaleDateString('es-PE')}.`
+                  : 'Tu cuenta fue creada correctamente. Realiza el pago para activar el acceso por WhatsApp.'}
+              </p>
+              {!subscription?.isActive && (
+                <button onClick={handleDashboardPay} disabled={isPaying} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-blue-600 disabled:opacity-50">
+                  {isPaying ? 'Preparando pago...' : 'Activar por S/. 5'}
+                </button>
+              )}
+              {billingMessage && <p className="mt-3 text-sm text-red-600">{billingMessage}</p>}
             </FadeIn>
 
-            {/* Card Quick Action */}
-            <FadeIn delay={0.2} className="bg-gradient-to-br from-blue-600 to-indigo-600 p-6 rounded-2xl shadow-lg text-white flex flex-col justify-center items-center text-center">
+            <FadeIn delay={0.2} className={`${subscription?.isActive ? 'bg-gradient-to-br from-blue-600 to-indigo-600' : 'bg-slate-700'} p-6 rounded-2xl shadow-lg text-white flex flex-col justify-center items-center text-center`}>
               <MessageCircle size={40} className="mb-4 opacity-80" />
-              <h3 className="font-bold mb-2">Hablar con el Bot</h3>
-              <p className="text-xs text-blue-100 mb-4">Abre WhatsApp para empezar a practicar.</p>
-              <a
-                href={WHATSAPP_AGENT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white text-blue-600 px-6 py-2 rounded-full text-sm font-bold w-full hover:bg-blue-50 transition"
-              >
-                Abrir WhatsApp
-              </a>
+              <h3 className="font-bold mb-2">{subscription?.isActive ? 'Hablar con el Bot' : 'Acceso pendiente'}</h3>
+              <p className="text-xs text-blue-100 mb-4">{subscription?.isActive ? 'Abre WhatsApp para empezar a practicar.' : 'Se habilitará después de confirmar el pago.'}</p>
+              {subscription?.isActive ? (
+                <a href={WHATSAPP_AGENT_URL} target="_blank" rel="noopener noreferrer" className="bg-white text-blue-600 px-6 py-2 rounded-full text-sm font-bold w-full hover:bg-blue-50 transition">Abrir WhatsApp</a>
+              ) : (
+                <button onClick={handleDashboardPay} disabled={isPaying} className="bg-white text-slate-700 px-6 py-2 rounded-full text-sm font-bold w-full disabled:opacity-50">Pagar suscripción</button>
+              )}
             </FadeIn>
           </div>
         )}
 
-        <FadeIn delay={0.3}>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">Historial de Pagos</h2>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                <tr><th className="p-4">Fecha</th><th className="p-4">Monto</th><th className="p-4">Estado</th><th className="p-4">Factura</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                <tr><td className="p-4">12 Jun 2026</td><td className="p-4 font-medium">S/. 5.00</td><td className="p-4"><span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Pagado</span></td><td className="p-4 text-slate-400">No disponible</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </FadeIn>
+        {!loadingMe && !meError && (
+          <FadeIn delay={0.3}>
+            <h2 className="text-xl font-bold text-slate-900 mb-4">Historial de Pagos</h2>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+              <table className="w-full min-w-[34rem] text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
+                  <tr><th className="p-4">Fecha</th><th className="p-4">Monto</th><th className="p-4">Estado</th><th className="p-4">Detalle</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {paymentHistory.length ? paymentHistory.map((payment) => (
+                    <tr key={payment.id}>
+                      <td className="p-4">{formatPaymentDate(payment.paidAt || payment.createdAt)}</td>
+                      <td className="p-4 font-medium">{payment.currency === 'PEN' ? 'S/.' : payment.currency} {Number(payment.amount).toFixed(2)}</td>
+                      <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${payment.status === 'approved' ? 'bg-green-100 text-green-700' : payment.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{statusLabel(payment.status)}</span></td>
+                      <td className="p-4 text-slate-500">{payment.statusDetail || 'Sin detalle adicional'}</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan="4" className="p-8 text-center text-slate-500">Aún no tienes pagos registrados.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </FadeIn>
+        )}
       </main>
     </div>
   );
